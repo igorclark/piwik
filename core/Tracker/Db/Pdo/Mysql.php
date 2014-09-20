@@ -14,6 +14,7 @@ use PDOException;
 use PDOStatement;
 use Piwik\Tracker\Db;
 use Piwik\Tracker\Db\DbException;
+use Piwik\Db as PiwikDb;
 
 /**
  * PDO MySQL wrapper
@@ -68,7 +69,8 @@ class Mysql extends Db
             $timer = $this->initProfiler();
         }
 
-        $this->connection = @new PDO($this->dsn, $this->username, $this->password, $config = array());
+        $config = PiwikDb::getDatabaseConfig();
+        $this->connection = @new PDO($this->dsn, $this->username, $this->password, $config['driver_options']);
         $this->connection->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         // we may want to setAttribute(PDO::ATTR_TIMEOUT ) to a few seconds (default is 60) in case the DB is locked
         // the piwik.php would stay waiting for the database... bad!

@@ -8,6 +8,7 @@
  */
 namespace Piwik;
 
+use PDO;
 use Exception;
 use Piwik\Db\Adapter;
 use Piwik\Tracker;
@@ -82,9 +83,63 @@ class Db
         Piwik::postEvent('Db.getDatabaseConfig', array(&$dbConfig));
 
         $dbConfig['profiler'] = $config->Debug['enable_sql_profiler'];
+        $dbConfig['driver_options'] = self::getDatabaseDriverOptions($dbConfig);
 
         return $dbConfig;
     }
+
+	/**
+	 * Gets MySQL SSL & peristent connection info from the config.ini.php file
+	 *
+	 * Uses information from the following options set in the config file:
+	 *
+	 * SSL options:
+	 *
+	 * + ssl_ca_file - path to the ca-cert.pem file used in connecting to MySQL server
+	 * + ssl_cert_file - path to the client-cert.pem file used in connecting to MySQL server
+	 * + ssl_key_file - path to the client-key.pem file used in connecting to MySQL server
+	 *
+	 * Connection info options:
+	 *
+	 * + persistent_connections - whether to use persistent connections to MySQL server
+	 *
+	 * @param array $dbConfig Database configuration section retrieved from `[database]`
+	 *                        INI config section.
+	 *
+	 * @return array
+	 */
+	public static function getDatabaseDriverOptions($dbConfig = null) {
+		$driverOptions = array_key_exists('driver_options', $dbConfig) ? $dbConfig['driver_options'] : [];
+
+		$sslOptionTypes = [
+			'CA'	=> "ssl_ca_file",
+			'CERT'	=> "ssl_cert_file",
+			'KEY'	=> "ssl_key_file"
+		];
+
+		$sslOptionsFound = 0;
+		foreach($sslOptionTypes as $sslOption => $sslOptionConfigKey) {
+			if(array_key_exists($sslOptionConfigKey, $dbConfig)) {
+				$sslOptionsFound = $sslOptionsFound + 1;
+			}
+		}
+
+		if($sslOptionsFound == count($sslOptionTypes)) {
+			foreach($sslOptionTypes as $sslOption => $sslOptionConfigKey) {
+				$pdoMysqlSslOptionTypeKey = "MYSQL_ATTR_SSL_" . $sslOption;
+				$driverOptions[constant('PDO::' . $pdoMysqlSslOptionTypeKey)] = $dbConfig[$sslOptionConfigKey];
+			}
+		}
+
+		if(array_key_exists('persistent_connections', $dbConfig)) {
+			if($dbConfig['persistent_connections'] == 1) {
+				$driverOptions[PDO::ATTR_PERSISTENT] = true;
+			}
+		}
+
+		return count($driverOptions) ? $driverOptions : null;
+
+	}
 
     /**
      * Connects to the database.
